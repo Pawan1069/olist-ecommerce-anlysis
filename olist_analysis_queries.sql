@@ -71,3 +71,32 @@ WHERE o.order_status = 'delivered'
 AND o.order_delivered_customer_date IS NOT NULL
 GROUP BY c.customer_state
 ORDER BY late_percentage DESC;
+
+-- Query 8: Customer Segmentation Summary
+SELECT 
+    CASE 
+        WHEN recency_days <= 90 AND frequency >= 2 THEN 'Champions'
+        WHEN recency_days <= 180 AND frequency >= 2 THEN 'Loyal Customers'
+        WHEN recency_days <= 90 AND frequency = 1 THEN 'Recent Customers'
+        WHEN recency_days <= 270 AND frequency = 1 THEN 'Potential Loyalists'
+        WHEN recency_days > 270 AND frequency >= 2 THEN 'At Risk'
+        WHEN recency_days > 270 AND total_spent >= 200 THEN 'Cant Lose Them'
+        WHEN recency_days > 360 THEN 'Lost'
+        ELSE 'Others'
+    END as segment,
+    COUNT(*) as total_customers,
+    ROUND(AVG(total_spent), 2) as avg_monetary
+FROM (
+    SELECT 
+        c.customer_unique_id,
+        DATEDIFF('2018-08-30', MAX(o.order_purchase_timestamp)) as recency_days,
+        COUNT(DISTINCT o.order_id) as frequency,
+        ROUND(SUM(p.payment_value), 2) as total_spent
+    FROM orders o
+    JOIN customers c ON o.customer_id = c.customer_id
+    JOIN payments p ON o.order_id = p.order_id
+    WHERE o.order_status = 'delivered'
+    GROUP BY c.customer_unique_id
+) as customer_data
+GROUP BY segment
+ORDER BY total_customers DESC;
